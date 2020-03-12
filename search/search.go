@@ -1,8 +1,6 @@
 package search
 
 import (
-	"io/ioutil"
-	"os"
 	"strings"
 )
 
@@ -11,40 +9,38 @@ type SortedStringSet struct {
 }
 
 type Index struct {
-	filename string
+	key string
 	*SortedStringSet
 }
 
-type InvertedIndex struct {
-	Index map[string]*SortedStringSet
-}
+type InvertedIndex map[string]*SortedStringSet
 
-func (i *InvertedIndex) Add(key, filename string) {
-	if _, exists := i.Index[key]; !exists {
-		i.Index[key] = &SortedStringSet{i: map[string]interface{}{}}
+func (i InvertedIndex) Add(key, filename string) {
+	if _, exists := i[key]; !exists {
+		i[key] = &SortedStringSet{i: map[string]interface{}{}}
 	}
-	i.Index[key].Add(filename)
+	i[key].Add(filename)
 }
 
-func (i *InvertedIndex) Json() map[string]interface{} {
+func (i InvertedIndex) MarshalYAML() (interface{}, error)  {
 	data := make(map[string]interface{})
-	for key, value := range i.Index {
+	for key, value := range i {
 		files := make([]string, len(value.i))
 		i := 0
-		for file, _ := range value.i {
+		for file := range value.i {
 			files[i] = file
 			i++
 		}
 		data[key] = files
 	}
-	return data
+	return data, nil
 }
 
 func InvertIndexes(indexes []Index) InvertedIndex {
-	idx := InvertedIndex{make(map[string]*SortedStringSet)}
+	idx := InvertedIndex{}
 	for _, index := range indexes {
 		for field, _ := range index.i {
-			idx.Add(field, index.filename)
+			idx.Add(field, index.key)
 		}
 	}
 	return idx
@@ -56,22 +52,13 @@ func (s *SortedStringSet) Add(str string) {
 	}
 }
 
-func GetIndexFromFile(path string) (*Index, error) {
-	bytes, err := ioutil.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	index := GetIndex(path[strings.LastIndex(path, string(os.PathSeparator)) + 1:], string(bytes))
-	return &index, nil
-}
-
-func GetIndex(filename, str string) Index {
-	index := SortedStringSet{i: make(map[string]interface{}, 2)}
+func GetIndex(key, str string) Index {
+	index := SortedStringSet{i: make(map[string]interface{})}
 	for _, idx := range strings.Fields(str) {
 		index.Add(idx)
 	}
 	return Index{
-		filename:        filename,
+		key:             key,
 		SortedStringSet: &index,
 	}
 }
